@@ -1,6 +1,6 @@
 # Employee Emotion & Task Optimization System
 
-An ML-powered system that detects employee emotions from text and recommends tasks accordingly.
+An ML-powered system that detects employee emotions from text statements and recommends tasks based on the predicted mood.
 
 ---
 
@@ -9,60 +9,131 @@ An ML-powered system that detects employee emotions from text and recommends tas
 ```
 employee-emotion-system/
 ├── backend/
-│   ├── app.py                        # Flask API + serves dashboard
-│   ├── train_model.py                # ML training script
-│   ├── requirements.txt              # Python dependencies
-│   ├── Employee_Emotion_Dashboard 1.xlsx  # Dataset
-│   ├── emotion.db                    # SQLite DB (auto-created on first run)
-│   ├── models/                       # Saved ML artifacts (auto-created after training)
-│   │   ├── model.pkl
-│   │   ├── vectorizer.pkl
-│   │   ├── scaler.pkl
-│   │   ├── label_encoder.pkl
-│   │   ├── stress_map.pkl
-│   │   └── workload_map.pkl
+│   ├── app.py                             # Flask API + serves the dashboard
+│   ├── train_model.py                     # ML training script
+│   ├── requirements.txt                   # Python dependencies
+│   ├── Employee_Emotion_Dashboard 1.xlsx  # Dataset (8000 rows)
+│   ├── emotion.db                         # SQLite database (auto-created on first run)
+│   ├── models/                            # Saved ML artifacts (auto-created after training)
+│   │   ├── model.pkl                      # Trained Random Forest
+│   │   ├── vectorizer.pkl                 # TF-IDF Vectorizer
+│   │   ├── scaler.pkl                     # StandardScaler
+│   │   ├── label_encoder.pkl              # Label Encoder (Happy / Neutral / Stressed)
+│   │   ├── stress_map.pkl                 # Stress level mapping
+│   │   └── workload_map.pkl               # Workload level mapping
 │   └── static/
-│       └── index.html                # Dashboard UI (plain HTML/JS)
-└── notebook/
-    └── emotion_model.ipynb           # Jupyter notebook (EDA + training)
+│       └── index.html                     # Dashboard UI (plain HTML + JS)
+├── notebook/
+│   └── emotion_model.ipynb                # Jupyter Notebook (EDA + training)
+└── README.md
 ```
 
 ---
 
 ## Tech Stack
 
-| Layer     | Technology                        |
-|-----------|-----------------------------------|
-| ML        | scikit-learn (Random Forest + TF-IDF) |
-| API       | Flask (Python)                    |
-| Database  | SQLite (zero setup)               |
-| Frontend  | Plain HTML + CSS + JavaScript     |
-| Charts    | Chart.js (CDN)                    |
+| Layer    | Technology                            |
+|----------|---------------------------------------|
+| ML       | scikit-learn — Random Forest + TF-IDF |
+| API      | Flask (Python)                        |
+| Database | SQLite (zero setup, no install)       |
+| Frontend | Plain HTML + CSS + JavaScript         |
+| Charts   | Chart.js (loaded via CDN)             |
+
+---
+
+## Setup & Run
+
+### Step 1 — Install Python dependencies
+```bash
+cd employee-emotion-system/backend
+pip install -r requirements.txt
+```
+
+### Step 2 — Train the model
+
+Option A — Jupyter Notebook (includes EDA charts):
+```bash
+jupyter notebook ../notebook/emotion_model.ipynb
+```
+Run all cells from top to bottom.
+
+Option B — Script only:
+```bash
+cd employee-emotion-system/backend
+python train_model.py
+```
+
+Expected output:
+```
+Accuracy: 1.0000
+Saved model.pkl
+Saved vectorizer.pkl
+Saved scaler.pkl
+Saved label_encoder.pkl
+Saved stress_map.pkl
+Saved workload_map.pkl
+Training complete.
+```
+
+### Step 3 — Start the Flask server
+```bash
+cd employee-emotion-system/backend
+python app.py
+```
+
+Expected output:
+```
+Starting Flask API on http://localhost:5000
+ * Running on http://127.0.0.1:5000
+```
+
+### Step 4 — Open the dashboard
+Visit http://localhost:5000 in your browser.
+
+> Keep the terminal open. Closing it stops the server.
 
 ---
 
 ## How It Works
 
+### Training phase
 ```
 Excel Dataset
-     │
-     ▼
-train_model.py
-  ├── Text Statement  ──► TF-IDF (500 features)  ─┐
-  ├── Stress Level    ──► encoded + scaled         ├──► Random Forest ──► models/*.pkl
-  ├── Workload Level  ──► encoded + scaled         │
-  └── Productivity    ──► scaled                  ─┘
+    │
+    ├── Text Statement   ──► TF-IDF Vectorizer (500 features)
+    ├── Stress Level     ──► encoded (Low=0, Medium=1, High=2) + scaled
+    ├── Workload Level   ──► encoded (Low=0, Medium=1, High=2) + scaled
+    └── Productivity Score ──► scaled
+                │
+                ▼
+        Random Forest Classifier
+                │
+                ▼
+          models/*.pkl  (saved to disk)
+```
 
-app.py (Flask)
-  ├── Loads models/*.pkl on startup
-  ├── POST /predict  ──► runs model ──► saves to SQLite ──► returns mood + recommendation
-  ├── GET  /stats    ──► queries SQLite ──► returns chart data
-  ├── GET  /history  ──► returns stored predictions
-  └── GET  /         ──► serves static/index.html (dashboard)
-
-Browser (static/index.html)
-  ├── Predict tab  ──► form ──► POST /predict ──► shows mood + task recommendation
-  └── Dashboard tab ──► GET /stats ──► renders mood pie, productivity bar, trend line, stress alerts
+### Prediction phase
+```
+User fills form on dashboard
+    │
+    ▼
+POST /predict  (JSON sent to Flask)
+    │
+    ├── Text  ──► same TF-IDF vectorizer transforms it
+    ├── Stress / Workload / Productivity  ──► same scaler transforms them
+    │
+    ▼
+Random Forest predicts mood  (Happy / Neutral / Stressed)
+    │
+    ├── Result saved to SQLite (emotion.db)
+    └── Response sent back to browser
+            │
+            ▼
+    Dashboard shows:
+      - Predicted mood + confidence
+      - Probability bars
+      - Task recommendation
 ```
 
 ---
@@ -77,102 +148,71 @@ Browser (static/index.html)
 
 ---
 
-## Setup & Run
+## Dashboard Features
 
-### 1. Install dependencies
-```bash
-cd employee-emotion-system/backend
-pip install -r requirements.txt
-```
-
-### 2. Train the model
-
-**Option A — Jupyter Notebook (recommended, includes EDA + charts)**
-```bash
-jupyter notebook ../notebook/emotion_model.ipynb
-```
-Run all cells top to bottom.
-
-**Option B — Direct script**
-```bash
-cd employee-emotion-system/backend
-python train_model.py
-```
-
-Expected output:
-```
-Accuracy: 1.0000
-Saved model.pkl
-Saved vectorizer.pkl
-...
-Training complete.
-```
-
-### 3. Start the Flask API
-```bash
-cd employee-emotion-system/backend
-python app.py
-```
-
-Expected output:
-```
-Starting Flask API on http://localhost:5000
- * Running on http://127.0.0.1:5000
-```
-
-### 4. Open the dashboard
-Go to **http://localhost:5000** in your browser.
-
-> Keep the terminal running. Closing it stops the server.
+- Predict tab — enter employee details, get instant emotion prediction and task recommendation
+- Dashboard tab — visualizations built from stored prediction history:
+  - Mood distribution (donut chart)
+  - Average productivity by mood (bar chart)
+  - Daily mood trend (line chart)
+  - Recent stress alerts list
 
 ---
 
-## API Reference
+## API Endpoints
 
-### POST /predict
-**Request:**
+| Method | Endpoint   | Description                          |
+|--------|------------|--------------------------------------|
+| GET    | /          | Serves the dashboard (index.html)    |
+| POST   | /predict   | Predict emotion from input           |
+| POST   | /recommend | Get task recommendation for a mood   |
+| GET    | /history   | Fetch stored predictions from DB     |
+| GET    | /stats     | Aggregated data for dashboard charts |
+| GET    | /health    | Health check                         |
+
+### POST /predict — example request
 ```json
 {
-  "employee_id": "E0001",
+  "employee_id": "E0002",
   "text_statement": "Deadline is stressing me",
   "stress_level": "High",
-  "workload_level": "High",
-  "productivity_score": 62
+  "workload_level": "Low",
+  "productivity_score": 57
 }
 ```
-**Response:**
+
+### POST /predict — example response
 ```json
 {
+  "employee_id": "E0002",
   "predicted_mood": "Stressed",
-  "confidence": 0.97,
-  "probabilities": { "Happy": 0.01, "Neutral": 0.02, "Stressed": 0.97 },
+  "confidence": 1.0,
+  "probabilities": {
+    "Happy": 0.0,
+    "Neutral": 0.0,
+    "Stressed": 1.0
+  },
   "recommendation": {
     "task": "Light Work",
-    "description": "Assign low-complexity tasks...",
+    "description": "Assign low-complexity tasks — documentation, routine updates, easy reviews.",
     "priority": "Low"
   }
 }
 ```
 
-### POST /recommend
-```json
-{ "mood": "Happy" }
-```
-
-### GET /history?limit=100&employee_id=E0001
-Returns stored predictions from SQLite.
-
-### GET /stats
-Returns aggregated data for all dashboard charts.
-
 ---
 
-## Dataset Columns Used
+## Dataset
 
-| Column             | Role                        |
-|--------------------|-----------------------------|
-| Text Statement     | NLP input (TF-IDF)          |
-| Mood               | Target label (Happy/Neutral/Stressed) |
-| Stress Level       | Numerical feature           |
-| Workload Level     | Numerical feature           |
-| Productivity Score | Numerical feature           |
+File: `Employee_Emotion_Dashboard 1.xlsx`
+Rows: 8000 | Columns: 21
+
+Columns used for training:
+
+| Column             | Purpose                              |
+|--------------------|--------------------------------------|
+| Text Statement     | NLP input — converted via TF-IDF     |
+| Mood               | Target label (Happy / Neutral / Stressed) |
+| Stress Level       | Numerical feature                    |
+| Workload Level     | Numerical feature                    |
+| Productivity Score | Numerical feature                    |
