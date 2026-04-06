@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Employee Emotion Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f1f5f9; min-height: 100vh; }
+
+    /* ── Header ── */
+    header { background: #1e293b; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; }
+    header h1 { font-size: 20px; font-weight: 700; }
+    nav button { background: transparent; border: 1px solid #334155; color: #94a3b8; border-radius: 8px; padding: 6px 18px; cursor: pointer; font-size: 14px; margin-left: 8px; transition: all .2s; }
+    nav button.active { background: #6366f1; border-color: #6366f1; color: #fff; }
+
+    /* ── Layout ── */
+    main { padding: 32px; max-width: 1100px; margin: 0 auto; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Cards ── */
+    .card { background: #1e293b; border-radius: 12px; padding: 24px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #1e293b; border-radius: 12px; padding: 20px; text-align: center; }
+    .stat-card .num { font-size: 32px; font-weight: 700; }
+    .stat-card .lbl { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+
+    /* ── Form ── */
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    label { color: #94a3b8; font-size: 13px; }
+    input, select, textarea {
+      background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+      color: #f1f5f9; padding: 9px 12px; font-size: 14px; outline: none;
+      transition: border-color .2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #6366f1; }
+    textarea { resize: vertical; min-height: 80px; }
+    input[type=range] { padding: 4px 0; border: none; background: transparent; }
+    .btn { width: 100%; background: #6366f1; color: #fff; border: none; border-radius: 8px; padding: 11px; font-size: 15px; cursor: pointer; margin-top: 4px; transition: background .2s; }
+    .btn:hover { background: #4f46e5; }
+    .btn:disabled { background: #334155; cursor: not-allowed; }
+
+    /* ── Result ── */
+    #result { display: none; }
+    .mood-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+    .mood-emoji { font-size: 40px; }
+    .mood-name { font-size: 26px; font-weight: 700; }
+    .mood-conf { color: #94a3b8; font-size: 13px; }
+    .prob-bar-wrap { margin-bottom: 8px; }
+    .prob-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
+    .bar-bg { background: #0f172a; border-radius: 4px; height: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width .5s; }
+    .rec-box { background: #0f172a; border-radius: 8px; padding: 16px; margin-top: 16px; }
+    .rec-title { color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .rec-task { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+    .rec-desc { color: #94a3b8; font-size: 13px; margin-bottom: 8px; }
+    .badge { display: inline-block; border-radius: 6px; padding: 2px 10px; font-size: 12px; font-weight: 600; color: #fff; }
+    .error-msg { color: #ef4444; font-size: 13px; margin-top: 8px; }
+
+    /* ── Alerts ── */
+    .alert-item { background: #0f172a; border-left: 3px solid #ef4444; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .alert-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .alert-emp { font-weight: 600; font-size: 14px; }
+    .alert-time { color: #64748b; font-size: 12px; }
+    .alert-text { color: #94a3b8; font-size: 13px; font-style: italic; margin-bottom: 4px; }
+    .alert-badge { background: #ef444420; color: #ef4444; border-radius: 6px; padding: 2px 8px; font-size: 12px; }
+
+    /* ── Chart containers ── */
+    .chart-wrap { position: relative; height: 240px; }
+    h3 { font-size: 16px; margin-bottom: 16px; }
+    .section-gap { margin-top: 24px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🧠 Employee Emotion & Task Optimizer</h1>
+  <nav>
+    <button class="active" onclick="showPage('predict', this)">Predict</button>
+    <button onclick="showPage('dashboard', this)">Dashboard</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ══ PREDICT PAGE ══════════════════════════════════════════════════════ -->
+  <div id="page-predict" class="page active">
+    <div class="grid-2">
+
+      <!-- Form -->
+      <div class="card">
+        <h3>Emotion Prediction</h3>
+        <div class="form-group">
+          <label>Employee ID</label>
+          <input id="emp_id" placeholder="e.g. E0001" />
+        </div>
+        <div class="form-group">
+          <label>Text Statement</label>
+          <textarea id="text_stmt" placeholder="How is the employee feeling today?" required></textarea>
+        </div>
+        <div class="form-group">
+          <label>Stress Level</label>
+          <select id="stress_level">
+            <option>Low</option><option>Medium</option><option>High</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Workload Level</label>
+          <select id="workload_level">
+            <option>Low</option><option>Medium</option><option>High</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Productivity Score: <span id="prod_val">75</span></label>
+          <input type="range" id="productivity" min="50" max="100" value="75"
+                 oninput="document.getElementById('prod_val').textContent=this.value" />
+        </div>
+        <p id="form_error" class="error-msg"></p>
+        <button class="btn" id="predict_btn" onclick="runPredict()">Predict Emotion</button>
+      </div>
+
+      <!-- Result -->
+      <div class="card" id="result">
+        <div class="mood-row">
+          <span class="mood-emoji" id="res_emoji">😐</span>
+          <div>
+            <div class="mood-name" id="res_mood">—</div>
+            <div class="mood-conf" id="res_conf"></div>
+          </div>
+        </div>
+        <div id="prob_bars"></div>
+        <div class="rec-box">
+          <div class="rec-title">Recommendation</div>
+          <div class="rec-task" id="rec_task"></div>
+          <div class="rec-desc" id="rec_desc"></div>
+          <span class="badge" id="rec_badge"></span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ DASHBOARD PAGE ════════════════════════════════════════════════════ -->
+  <div id="page-dashboard" class="page">
+
+    <!-- Stat cards -->
+    <div class="grid-3" id="stat_cards">
+      <div class="stat-card"><div class="num" id="stat_total">—</div><div class="lbl">Total Predictions</div></div>
+      <div class="stat-card"><div class="num" style="color:#ef4444" id="stat_stressed">—</div><div class="lbl">Stressed Employees</div></div>
+      <div class="stat-card"><div class="num" style="color:#22c55e" id="stat_happy">—</div><div class="lbl">Happy Employees</div></div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Mood distribution pie -->
+      <div class="card">
+        <h3>Mood Distribution</h3>
+        <div class="chart-wrap"><canvas id="moodChart"></canvas></div>
+      </div>
+      <!-- Productivity bar -->
+      <div class="card">
+        <h3>Avg Productivity by Mood</h3>
+        <div class="chart-wrap"><canvas id="prodChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Mood trend line -->
+    <div class="card section-gap">
+      <h3>Mood Trend (Daily)</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="trendChart"></canvas></div>
+    </div>
+
+    <!-- Stress alerts -->
+    <div class="card section-gap">
+      <h3>⚠️ Recent Stress Alerts</h3>
+      <div id="alerts_list"><p style="color:#94a3b8">No alerts yet.</p></div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const API = 'http://localhost:5000';
+const MOOD_COLORS = { Happy:'#22c55e', Neutral:'#f59e0b', Stressed:'#ef4444' };
+const MOOD_EMOJI  = { Happy:'😊', Neutral:'😐', Stressed:'😰' };
+const PRIORITY_COLORS = { High:'#22c55e', Medium:'#f59e0b', Low:'#6366f1' };
+
+let moodChart, prodChart, trendChart;
+
+// ── Page switching ────────────────────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+}
+
+// ── Predict ───────────────────────────────────────────────────────────────────
+async function runPredict() {
+  const text = document.getElementById('text_stmt').value.trim();
+  if (!text) { document.getElementById('form_error').textContent = 'Text statement is required.'; return; }
+  document.getElementById('form_error').textContent = '';
+
+  const btn = document.getElementById('predict_btn');
+  btn.disabled = true; btn.textContent = 'Predicting…';
+
+  try {
+    const res = await fetch(`${API}/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        employee_id:       document.getElementById('emp_id').value || 'unknown',
+        text_statement:    text,
+        stress_level:      document.getElementById('stress_level').value,
+        workload_level:    document.getElementById('workload_level').value,
+        productivity_score: Number(document.getElementById('productivity').value),
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Prediction failed');
+    renderResult(data);
+  } catch(e) {
+    document.getElementById('form_error').textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Predict Emotion';
+  }
+}
+
+function renderResult(data) {
+  const { predicted_mood, confidence, probabilities, recommendation } = data;
+  const color = MOOD_COLORS[predicted_mood] || '#94a3b8';
+
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('res_emoji').textContent = MOOD_EMOJI[predicted_mood] || '😐';
+  document.getElementById('res_mood').textContent  = predicted_mood;
+  document.getElementById('res_mood').style.color  = color;
+  document.getElementById('res_conf').textContent  = `Confidence: ${(confidence*100).toFixed(1)}%`;
+
+  // Probability bars
+  const barsEl = document.getElementById('prob_bars');
+  barsEl.innerHTML = Object.entries(probabilities).map(([cls, prob]) => `
+    <div class="prob-bar-wrap">
+      <div class="prob-label">
+        <span style="color:${MOOD_COLORS[cls]||'#94a3b8'}">${cls}</span>
+        <span style="color:#94a3b8">${(prob*100).toFixed(1)}%</span>
+      </div>
+      <div class="bar-bg">
+        <div class="bar-fill" style="width:${prob*100}%;background:${MOOD_COLORS[cls]||'#6366f1'}"></div>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('rec_task').textContent  = recommendation.task;
+  document.getElementById('rec_desc').textContent  = recommendation.description;
+  const badge = document.getElementById('rec_badge');
+  badge.textContent   = `Priority: ${recommendation.priority}`;
+  badge.style.background = PRIORITY_COLORS[recommendation.priority] || '#6366f1';
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const [stats, history] = await Promise.all([
+      fetch(`${API}/stats`).then(r => r.json()),
+      fetch(`${API}/history?limit=500`).then(r => r.json()),
+    ]);
+    renderStats(stats, history);
+    renderMoodChart(stats.mood_counts);
+    renderProdChart(stats.productivity);
+    renderTrendChart(stats.trend);
+    renderAlerts(stats.alerts);
+  } catch(e) {
+    console.error('Dashboard load error:', e);
+  }
+}
+
+function renderStats(stats, history) {
+  const total    = history.length;
+  const stressed = history.filter(r => r.predicted_mood === 'Stressed').length;
+  const happy    = history.filter(r => r.predicted_mood === 'Happy').length;
+  document.getElementById('stat_total').textContent    = total;
+  document.getElementById('stat_stressed').textContent = stressed;
+  document.getElementById('stat_happy').textContent    = happy;
+}
+
+function renderMoodChart(moodCounts) {
+  const labels = moodCounts.map(r => r.predicted_mood);
+  const values = moodCounts.map(r => r.count);
+  const colors = labels.map(l => MOOD_COLORS[l] || '#6366f1');
+  if (moodChart) moodChart.destroy();
+  moodChart = new Chart(document.getElementById('moodChart'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }] },
+    options: { plugins: { legend: { labels: { color: '#94a3b8' } } }, cutout: '60%' }
+  });
+}
+
+function renderProdChart(prodData) {
+  const labels = prodData.map(r => r.predicted_mood);
+  const values = prodData.map(r => r.avg_prod);
+  const colors = labels.map(l => MOOD_COLORS[l] || '#6366f1');
+  if (prodChart) prodChart.destroy();
+  prodChart = new Chart(document.getElementById('prodChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Avg Score', data: values, backgroundColor: colors, borderRadius: 6 }] },
+    options: {
+      scales: {
+        y: { min: 0, max: 100, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function renderTrendChart(trendData) {
+  // Build date × mood matrix
+  const dateSet = [...new Set(trendData.map(r => r.date))].sort();
+  const moods   = ['Happy', 'Neutral', 'Stressed'];
+  const datasets = moods.map(mood => ({
+    label: mood,
+    data: dateSet.map(date => {
+      const row = trendData.find(r => r.date === date && r.predicted_mood === mood);
+      return row ? row.count : 0;
+    }),
+    borderColor: MOOD_COLORS[mood],
+    backgroundColor: MOOD_COLORS[mood] + '22',
+    tension: 0.3,
+    fill: false,
+    pointRadius: 3,
+  }));
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: { labels: dateSet, datasets },
+    options: {
+      scales: {
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { display: false } }
+      },
+      plugins: { legend: { labels: { color: '#94a3b8' } } }
+    }
+  });
+}
+
+function renderAlerts(alerts) {
+  const el = document.getElementById('alerts_list');
+  if (!alerts.length) { el.innerHTML = '<p style="color:#94a3b8">No stress alerts. All good! ✅</p>'; return; }
+  el.innerHTML = alerts.map(a => `
+    <div class="alert-item">
+      <div class="alert-row">
+        <span class="alert-emp">${a.employee_id}</span>
+        <span class="alert-time">${a.created_at?.slice(0,16).replace('T',' ')}</span>
+      </div>
+      <p class="alert-text">"${a.text_statement}"</p>
+      <span class="alert-badge">Stress: ${a.stress_level} | Workload: ${a.workload_level}</span>
+    </div>`).join('');
+}
+</script>
+</body>
+</html>
